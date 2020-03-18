@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -12,9 +13,11 @@ import org.springframework.security.oauth2.config.annotation.web.configuration.A
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer
+import org.springframework.security.oauth2.provider.token.DefaultTokenServices
 import org.springframework.security.oauth2.provider.token.TokenStore
+import org.springframework.security.oauth2.provider.token.store.JdbcTokenStore
 import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter
-import org.springframework.security.oauth2.provider.token.store.JwtTokenStore
+import javax.sql.DataSource
 
 
 @Configuration
@@ -27,9 +30,10 @@ class OAuthConfiguration : AuthorizationServerConfigurerAdapter() {
 
     @Autowired lateinit var userDetailsService: UserDetailsService
 
-
     @Autowired
     @Qualifier("bCryptPasswordEncoder") lateinit var passwordEncoder: PasswordEncoder
+
+    @Autowired lateinit var dataSource: DataSource
 
     @Throws(Exception::class)
     override fun configure(oauthServer: AuthorizationServerSecurityConfigurer) {
@@ -53,10 +57,27 @@ class OAuthConfiguration : AuthorizationServerConfigurerAdapter() {
                 .userDetailsService(userDetailsService)
     }
 
+    // Todo : for in memory database (H2)
+//    @Bean
+//    fun tokenStore(): TokenStore? {
+//        return JwtTokenStore(defaultAccessTokenConverter())
+//    }
+
     @Bean
     fun tokenStore(): TokenStore? {
-        return JwtTokenStore(defaultAccessTokenConverter())
+        return JdbcTokenStore(dataSource)
     }
+
+    // Todo : Use for now config database in application.properties file
+//    @Bean
+//    fun dataSource(): DataSource? {
+//        val dataSourceBuilder = DataSourceBuilder.create()
+//        dataSourceBuilder.driverClassName("org.postgresql.Driver")
+//        dataSourceBuilder.url("jdbc:postgresql://localhost:5432/postgres")
+//        dataSourceBuilder.username("postgres")
+//        dataSourceBuilder.password("password")
+//        return dataSourceBuilder.build()
+//    }
 
     @Bean
     fun defaultAccessTokenConverter(): JwtAccessTokenConverter? {
@@ -64,5 +85,15 @@ class OAuthConfiguration : AuthorizationServerConfigurerAdapter() {
         converter.setSigningKey("123")
         return converter
     }
+
+    @Bean
+    @Primary
+    fun tokenServices(): DefaultTokenServices? {
+        val defaultTokenServices = DefaultTokenServices()
+        defaultTokenServices.setTokenStore(tokenStore())
+        defaultTokenServices.setSupportRefreshToken(true)
+        return defaultTokenServices
+    }
+
 
 }
